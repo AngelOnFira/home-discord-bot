@@ -21,10 +21,10 @@ job "home-discord-bot" {
 
       template {
         data = <<EOH
-DISCORD_TOKEN={{ with nomadVar "nomad/jobs/home-discord-bot" }}{{ .discord_token }}{{ end }}
-KASA_USERNAME={{ with nomadVar "nomad/jobs/home-discord-bot" }}{{ .kasa_username }}{{ end }}
-KASA_PASSWORD={{ with nomadVar "nomad/jobs/home-discord-bot" }}{{ .kasa_password }}{{ end }}
-KASA_DEVICE_IP={{ with nomadVar "nomad/jobs/home-discord-bot" }}{{ .kasa_device_ip }}{{ end }}
+DISCORD_TOKEN={{ with nomadVar "nomad/jobs/home-discord-bot" }}{{ .DISCORD_TOKEN }}{{ end }}
+KASA_USERNAME={{ with nomadVar "nomad/jobs/home-discord-bot" }}{{ .KASA_USERNAME }}{{ end }}
+KASA_PASSWORD={{ with nomadVar "nomad/jobs/home-discord-bot" }}{{ .KASA_PASSWORD }}{{ end }}
+KASA_DEVICE_IP={{ with nomadVar "nomad/jobs/home-discord-bot" }}{{ .KASA_DEVICE_IP }}{{ end }}
 KASA_DIR=/opt/python-kasa
 EOH
         destination = "local/file.env"
