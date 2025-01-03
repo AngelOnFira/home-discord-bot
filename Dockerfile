@@ -13,8 +13,12 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv using the official script
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+# Install uv using the official script and add to PATH
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    echo 'export PATH="/root/.local/bin:$PATH"' >> /root/.bashrc && \
+    . /root/.bashrc
+
+ENV PATH="/root/.local/bin:$PATH"
 
 # Install python-kasa from source in a specific directory
 RUN git clone https://github.com/python-kasa/python-kasa.git /opt/python-kasa && \
