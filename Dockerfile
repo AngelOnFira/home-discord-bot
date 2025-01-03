@@ -23,6 +23,7 @@ ENV PATH="/root/.local/bin:$PATH"
 # Install python-kasa from source in a specific directory
 RUN git clone https://github.com/python-kasa/python-kasa.git /opt/python-kasa && \
     cd /opt/python-kasa && \
+    source $HOME/.local/bin/env && \
     uv sync --all-extras
 
 # Copy the compiled binary from builder
