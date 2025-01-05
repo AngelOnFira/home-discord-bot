@@ -1,12 +1,14 @@
+use chrono::{Local, Timelike};
 use std::env;
 use std::process::Command;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use tokio_cron_scheduler::{Job, JobScheduler};
+use tracing::{error, info};
 
 use serenity::all::*;
 use serenity::async_trait;
 use serenity::builder::{CreateActionRow, CreateButton};
-use tracing::{error, info};
 
 const CONTROL_CHANNEL_NAME: &str = "light-controls";
 
@@ -19,6 +21,7 @@ fn get_env_var(key: &str) -> String {
     env::var(key).unwrap_or_else(|_| panic!("Expected {key} in environment"))
 }
 
+#[derive(Clone)]
 struct Handler {
     control_channel: Arc<RwLock<Option<ChannelId>>>,
     kasa_device_ip: String,
@@ -120,6 +123,30 @@ impl Handler {
 
         Ok(())
     }
+
+    async fn start_scheduler(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let scheduler = JobScheduler::new().await?;
+        let handler = self.clone();
+
+        // Turn off lights at midnight
+        scheduler
+            .add(Job::new_async("0 0 0 * * *", move |_, _| {
+                let handler = handler.clone();
+                Box::pin(async move {
+                    if let Err(e) = handler.execute_light_command("off").await {
+                        error!("Failed to execute midnight light off command: {}", e);
+                    } else {
+                        info!("Successfully turned off light at midnight");
+                    }
+                })
+            })?)
+            .await?;
+
+        // Start the scheduler
+        scheduler.start().await?;
+
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -163,6 +190,9 @@ impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, ready: Ready) {
         info!("{} is connected!", ready.user.name);
         self.setup_control_channel(&ctx).await;
+        if let Err(e) = self.start_scheduler().await {
+            error!("Failed to start scheduler: {}", e);
+        }
     }
 }
 
@@ -171,7 +201,6 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     let token = get_env_var("DISCORD_TOKEN");
-    println!("{}", token);
 
     let intents = GatewayIntents::GUILD_MESSAGES
         | GatewayIntents::DIRECT_MESSAGES
