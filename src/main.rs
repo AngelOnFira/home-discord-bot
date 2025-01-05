@@ -114,6 +114,14 @@ impl Handler {
     }
 
     async fn execute_light_command(&self, command: &str) -> Result<(), String> {
+        // Log the command, but mask sensitive info if present
+        let log_command = if command.contains("--username") || command.contains("--password") {
+            "[CREDENTIALS MASKED]".to_string()
+        } else {
+            command.to_string()
+        };
+        info!("Executing kasa command: {}", log_command);
+
         let output = Command::new("uv")
             .arg("run")
             .arg("kasa")
@@ -128,11 +136,16 @@ impl Handler {
             .output()
             .map_err(|e| format!("Failed to execute kasa command: {}", e))?;
 
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        info!("Kasa command stdout: {}", stdout);
+        if !stderr.is_empty() {
+            error!("Kasa command stderr: {}", stderr);
+        }
+
         if !output.status.success() {
-            return Err(format!(
-                "Command failed: {}",
-                String::from_utf8_lossy(&output.stderr)
-            ));
+            return Err(format!("Command failed: {}", stderr));
         }
 
         Ok(())
