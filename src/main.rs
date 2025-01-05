@@ -81,14 +81,27 @@ impl Handler {
                             &ctx.http,
                             CreateMessage::new()
                                 .content("Light Controls")
-                                .components(vec![CreateActionRow::Buttons(vec![
-                                    CreateButton::new("light_on")
-                                        .label("Turn On")
-                                        .style(ButtonStyle::Success),
-                                    CreateButton::new("light_off")
-                                        .label("Turn Off")
-                                        .style(ButtonStyle::Danger),
-                                ])]),
+                                .components(vec![
+                                    CreateActionRow::Buttons(vec![
+                                        CreateButton::new("light_on")
+                                            .label("Turn On")
+                                            .style(ButtonStyle::Success),
+                                        CreateButton::new("light_off")
+                                            .label("Turn Off")
+                                            .style(ButtonStyle::Danger),
+                                    ]),
+                                    CreateActionRow::Buttons(vec![
+                                        CreateButton::new("light_on_15")
+                                            .label("15 min")
+                                            .style(ButtonStyle::Secondary),
+                                        CreateButton::new("light_on_30")
+                                            .label("30 min")
+                                            .style(ButtonStyle::Secondary),
+                                        CreateButton::new("light_on_60")
+                                            .label("60 min")
+                                            .style(ButtonStyle::Secondary),
+                                    ]),
+                                ]),
                         )
                         .await
                     {
@@ -123,6 +136,34 @@ impl Handler {
         }
 
         Ok(())
+    }
+
+    async fn set_auto_off(&self, enabled: bool, minutes: Option<u32>) -> Result<(), String> {
+        // First set the minutes if provided
+        if let Some(mins) = minutes {
+            self.execute_light_command(&format!("feature auto_off_minutes {}", mins))
+                .await?;
+        }
+
+        // Then enable/disable the feature
+        self.execute_light_command(&format!(
+            "feature auto_off_enabled {}",
+            if enabled { "True" } else { "False" }
+        ))
+        .await
+    }
+
+    async fn turn_on_timed(&self, minutes: u32) -> Result<(), String> {
+        // First turn on the light
+        self.execute_light_command("on").await?;
+        // Then set up auto-off
+        self.set_auto_off(true, Some(minutes)).await
+    }
+
+    async fn turn_on_regular(&self) -> Result<(), String> {
+        // Turn on the light and disable auto-off
+        self.execute_light_command("on").await?;
+        self.set_auto_off(false, None).await
     }
 
     async fn start_scheduler(&self) -> Result<(), Box<dyn std::error::Error>> {
@@ -181,7 +222,7 @@ impl EventHandler for Handler {
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
         if let Interaction::Component(component) = interaction {
             let content = match component.data.custom_id.as_str() {
-                "light_on" => match self.execute_light_command("on").await {
+                "light_on" => match self.turn_on_regular().await {
                     Ok(_) => "Light turned on!",
                     Err(e) => {
                         error!("Error turning light on: {}", e);
@@ -193,6 +234,27 @@ impl EventHandler for Handler {
                     Err(e) => {
                         error!("Error turning light off: {}", e);
                         "Failed to turn off light"
+                    }
+                },
+                "light_on_15" => match self.turn_on_timed(15).await {
+                    Ok(_) => "Light turned on for 15 minutes!",
+                    Err(e) => {
+                        error!("Error setting timed light: {}", e);
+                        "Failed to set timed light"
+                    }
+                },
+                "light_on_30" => match self.turn_on_timed(30).await {
+                    Ok(_) => "Light turned on for 30 minutes!",
+                    Err(e) => {
+                        error!("Error setting timed light: {}", e);
+                        "Failed to set timed light"
+                    }
+                },
+                "light_on_60" => match self.turn_on_timed(60).await {
+                    Ok(_) => "Light turned on for 60 minutes!",
+                    Err(e) => {
+                        error!("Error setting timed light: {}", e);
+                        "Failed to set timed light"
                     }
                 },
                 _ => "Unknown button",
