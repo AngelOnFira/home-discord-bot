@@ -1,4 +1,5 @@
-use chrono::{Local, Timelike};
+use chrono::{DateTime, Local, Timelike, Utc};
+use chrono_tz::America::Toronto;
 use std::env;
 use std::process::Command;
 use std::sync::Arc;
@@ -128,15 +129,41 @@ impl Handler {
         let scheduler = JobScheduler::new().await?;
         let handler = self.clone();
 
+        // Log current time in different timezones
+        let now = Utc::now();
+        let local = Local::now();
+        let toronto = now.with_timezone(&Toronto);
+
+        info!("Current time - UTC: {}", now);
+        info!("Current time - Local: {}", local);
+        info!("Current time - Toronto: {}", toronto);
+
         // Turn off lights at midnight
         scheduler
             .add(Job::new_async("0 0 0 * * *", move |_, _| {
                 let handler = handler.clone();
                 Box::pin(async move {
+                    info!("Running midnight job at {}", Local::now());
                     if let Err(e) = handler.execute_light_command("off").await {
                         error!("Failed to execute midnight light off command: {}", e);
                     } else {
                         info!("Successfully turned off light at midnight");
+                    }
+                })
+            })?)
+            .await?;
+
+        // Turn on lights at 5 PM (17:00)
+        let handler = self.clone();
+        scheduler
+            .add(Job::new_async("0 0 17 * * *", move |_, _| {
+                let handler = handler.clone();
+                Box::pin(async move {
+                    info!("Running 5 PM job at {}", Local::now());
+                    if let Err(e) = handler.execute_light_command("on").await {
+                        error!("Failed to execute 5 PM light on command: {}", e);
+                    } else {
+                        info!("Successfully turned on light at 5 PM");
                     }
                 })
             })?)
