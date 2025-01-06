@@ -198,42 +198,48 @@ impl Handler {
 
         // Log current time in different timezones
         let now = Utc::now();
-        let local = Local::now();
         let toronto = now.with_timezone(&Toronto);
 
         info!("Current time - UTC: {}", now);
-        info!("Current time - Local: {}", local);
         info!("Current time - Toronto: {}", toronto);
 
         // Turn off lights at midnight
         scheduler
-            .add(Job::new_async("0 0 0 * * *", move |_, _| {
-                let handler = handler.clone();
-                Box::pin(async move {
-                    info!("Running midnight job at {}", Local::now());
-                    if let Err(e) = handler.execute_light_command(&["off"]).await {
-                        error!("Failed to execute midnight light off command: {}", e);
-                    } else {
-                        info!("Successfully turned off light at midnight");
-                    }
-                })
-            })?)
+            .add(Job::new_async(
+                "0 0 0 * * * America/Toronto",
+                move |_, _| {
+                    let handler = handler.clone();
+                    Box::pin(async move {
+                        let now = Utc::now().with_timezone(&Toronto);
+                        info!("Running midnight job at {}", now);
+                        if let Err(e) = handler.execute_light_command(&["off"]).await {
+                            error!("Failed to execute midnight light off command: {}", e);
+                        } else {
+                            info!("Successfully turned off light at midnight");
+                        }
+                    })
+                },
+            )?)
             .await?;
 
         // Turn on lights at 5 PM (17:00)
         let handler = self.clone();
         scheduler
-            .add(Job::new_async("0 0 17 * * *", move |_, _| {
-                let handler = handler.clone();
-                Box::pin(async move {
-                    info!("Running 5 PM job at {}", Local::now());
-                    if let Err(e) = handler.execute_light_command(&["on"]).await {
-                        error!("Failed to execute 5 PM light on command: {}", e);
-                    } else {
-                        info!("Successfully turned on light at 5 PM");
-                    }
-                })
-            })?)
+            .add(Job::new_async(
+                "0 0 17 * * * America/Toronto",
+                move |_, _| {
+                    let handler = handler.clone();
+                    Box::pin(async move {
+                        let now = Utc::now().with_timezone(&Toronto);
+                        info!("Running 5 PM job at {}", now);
+                        if let Err(e) = handler.execute_light_command(&["on"]).await {
+                            error!("Failed to execute 5 PM light on command: {}", e);
+                        } else {
+                            info!("Successfully turned on light at 5 PM");
+                        }
+                    })
+                },
+            )?)
             .await?;
 
         // Start the scheduler
@@ -281,7 +287,8 @@ impl EventHandler for Handler {
                 },
                 "light_on_15" => match self.turn_on_timed(15).await {
                     Ok(_) => {
-                        let off_time = Local::now() + chrono::Duration::minutes(15);
+                        let now = Utc::now().with_timezone(&Toronto);
+                        let off_time = now + chrono::Duration::minutes(15);
                         let timestamp = off_time.timestamp();
                         format!(
                             "Light turned on for 15 minutes! Will turn off <t:{}:R> (<t:{}:t>)",
@@ -295,7 +302,8 @@ impl EventHandler for Handler {
                 },
                 "light_on_30" => match self.turn_on_timed(30).await {
                     Ok(_) => {
-                        let off_time = Local::now() + chrono::Duration::minutes(30);
+                        let now = Utc::now().with_timezone(&Toronto);
+                        let off_time = now + chrono::Duration::minutes(30);
                         let timestamp = off_time.timestamp();
                         format!(
                             "Light turned on for 30 minutes! Will turn off <t:{}:R> (<t:{}:t>)",
@@ -309,7 +317,8 @@ impl EventHandler for Handler {
                 },
                 "light_on_60" => match self.turn_on_timed(60).await {
                     Ok(_) => {
-                        let off_time = Local::now() + chrono::Duration::minutes(60);
+                        let now = Utc::now().with_timezone(&Toronto);
+                        let off_time = now + chrono::Duration::minutes(60);
                         let timestamp = off_time.timestamp();
                         format!(
                             "Light turned on for 60 minutes! Will turn off <t:{}:R> (<t:{}:t>)",
