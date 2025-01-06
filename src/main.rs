@@ -253,19 +253,15 @@ impl Handler {
 impl EventHandler for Handler {
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
         if let Interaction::Component(component) = interaction {
-            // Respond immediately with "Processing..." message
+            // Defer the response without showing a message
             if let Err(why) = component
                 .create_response(
                     &ctx.http,
-                    CreateInteractionResponse::Message(
-                        CreateInteractionResponseMessage::new()
-                            .content("Processing...")
-                            .ephemeral(true),
-                    ),
+                    CreateInteractionResponse::Defer(CreateInteractionResponseMessage::new()),
                 )
                 .await
             {
-                error!("Cannot respond to button: {}", why);
+                error!("Cannot defer button response: {}", why);
                 return;
             }
 
