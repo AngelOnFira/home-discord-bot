@@ -247,57 +247,94 @@ impl Handler {
 impl EventHandler for Handler {
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
         if let Interaction::Component(component) = interaction {
-            let content = match component.data.custom_id.as_str() {
-                "light_on" => match self.turn_on_regular().await {
-                    Ok(_) => "Light turned on!",
-                    Err(e) => {
-                        error!("Error turning light on: {}", e);
-                        "Failed to turn on light"
-                    }
-                },
-                "light_off" => match self.execute_light_command(&["off"]).await {
-                    Ok(_) => "Light turned off!",
-                    Err(e) => {
-                        error!("Error turning light off: {}", e);
-                        "Failed to turn off light"
-                    }
-                },
-                "light_on_15" => match self.turn_on_timed(15).await {
-                    Ok(_) => "Light turned on for 15 minutes!",
-                    Err(e) => {
-                        error!("Error setting timed light: {}", e);
-                        "Failed to set timed light"
-                    }
-                },
-                "light_on_30" => match self.turn_on_timed(30).await {
-                    Ok(_) => "Light turned on for 30 minutes!",
-                    Err(e) => {
-                        error!("Error setting timed light: {}", e);
-                        "Failed to set timed light"
-                    }
-                },
-                "light_on_60" => match self.turn_on_timed(60).await {
-                    Ok(_) => "Light turned on for 60 minutes!",
-                    Err(e) => {
-                        error!("Error setting timed light: {}", e);
-                        "Failed to set timed light"
-                    }
-                },
-                _ => "Unknown button",
-            };
-
+            // Respond immediately with "Processing..." message
             if let Err(why) = component
                 .create_response(
                     &ctx.http,
                     CreateInteractionResponse::Message(
                         CreateInteractionResponseMessage::new()
-                            .content(content)
+                            .content("Processing...")
                             .ephemeral(true),
                     ),
                 )
                 .await
             {
                 error!("Cannot respond to button: {}", why);
+                return;
+            }
+
+            // Process the command
+            let result = match component.data.custom_id.as_str() {
+                "light_on" => match self.turn_on_regular().await {
+                    Ok(_) => "Light turned on!".to_string(),
+                    Err(e) => {
+                        error!("Error turning light on: {}", e);
+                        "Failed to turn on light".to_string()
+                    }
+                },
+                "light_off" => match self.execute_light_command(&["off"]).await {
+                    Ok(_) => "Light turned off!".to_string(),
+                    Err(e) => {
+                        error!("Error turning light off: {}", e);
+                        "Failed to turn off light".to_string()
+                    }
+                },
+                "light_on_15" => match self.turn_on_timed(15).await {
+                    Ok(_) => {
+                        let off_time = Local::now() + chrono::Duration::minutes(15);
+                        let timestamp = off_time.timestamp();
+                        format!(
+                            "Light turned on for 15 minutes! Will turn off <t:{}:R> (<t:{}:t>)",
+                            timestamp, timestamp
+                        )
+                    }
+                    Err(e) => {
+                        error!("Error setting timed light: {}", e);
+                        "Failed to set timed light".to_string()
+                    }
+                },
+                "light_on_30" => match self.turn_on_timed(30).await {
+                    Ok(_) => {
+                        let off_time = Local::now() + chrono::Duration::minutes(30);
+                        let timestamp = off_time.timestamp();
+                        format!(
+                            "Light turned on for 30 minutes! Will turn off <t:{}:R> (<t:{}:t>)",
+                            timestamp, timestamp
+                        )
+                    }
+                    Err(e) => {
+                        error!("Error setting timed light: {}", e);
+                        "Failed to set timed light".to_string()
+                    }
+                },
+                "light_on_60" => match self.turn_on_timed(60).await {
+                    Ok(_) => {
+                        let off_time = Local::now() + chrono::Duration::minutes(60);
+                        let timestamp = off_time.timestamp();
+                        format!(
+                            "Light turned on for 60 minutes! Will turn off <t:{}:R> (<t:{}:t>)",
+                            timestamp, timestamp
+                        )
+                    }
+                    Err(e) => {
+                        error!("Error setting timed light: {}", e);
+                        "Failed to set timed light".to_string()
+                    }
+                },
+                _ => "Unknown button".to_string(),
+            };
+
+            // Send the final result as a followup
+            if let Err(why) = component
+                .create_followup(
+                    &ctx.http,
+                    CreateInteractionResponseFollowup::new()
+                        .content(result)
+                        .ephemeral(true),
+                )
+                .await
+            {
+                error!("Cannot send followup message: {}", why);
             }
         }
     }
