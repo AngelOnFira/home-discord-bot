@@ -113,16 +113,22 @@ impl Handler {
         }
     }
 
-    async fn execute_light_command(&self, command: &str) -> Result<(), String> {
+    async fn execute_light_command(&self, args: &[&str]) -> Result<(), String> {
         // Log the command, but mask sensitive info if present
-        let log_command = if command.contains("--username") || command.contains("--password") {
-            "[CREDENTIALS MASKED]".to_string()
-        } else {
-            command.to_string()
-        };
-        info!("Executing kasa command: {}", log_command);
+        let log_args: Vec<&str> = args
+            .iter()
+            .map(|&arg| {
+                if arg.contains("username") || arg.contains("password") {
+                    "[MASKED]"
+                } else {
+                    arg
+                }
+            })
+            .collect();
+        info!("Executing kasa command with args: {:?}", log_args);
 
-        let output = Command::new("uv")
+        let mut command = Command::new("uv");
+        command
             .arg("run")
             .arg("kasa")
             .current_dir(&self.kasa_dir)
@@ -131,8 +137,14 @@ impl Handler {
             .arg("--username")
             .arg(&self.kasa_username)
             .arg("--password")
-            .arg(&self.kasa_password)
-            .arg(command)
+            .arg(&self.kasa_password);
+
+        // Add all the additional arguments
+        for arg in args {
+            command.arg(arg);
+        }
+
+        let output = command
             .output()
             .map_err(|e| format!("Failed to execute kasa command: {}", e))?;
 
@@ -154,28 +166,29 @@ impl Handler {
     async fn set_auto_off(&self, enabled: bool, minutes: Option<u32>) -> Result<(), String> {
         // First set the minutes if provided
         if let Some(mins) = minutes {
-            self.execute_light_command(&format!("feature auto_off_minutes {}", mins))
+            self.execute_light_command(&["feature", "auto_off_minutes", &mins.to_string()])
                 .await?;
         }
 
         // Then enable/disable the feature
-        self.execute_light_command(&format!(
-            "feature auto_off_enabled {}",
-            if enabled { "True" } else { "False" }
-        ))
+        self.execute_light_command(&[
+            "feature",
+            "auto_off_enabled",
+            if enabled { "True" } else { "False" },
+        ])
         .await
     }
 
     async fn turn_on_timed(&self, minutes: u32) -> Result<(), String> {
         // First turn on the light
-        self.execute_light_command("on").await?;
+        self.execute_light_command(&["on"]).await?;
         // Then set up auto-off
         self.set_auto_off(true, Some(minutes)).await
     }
 
     async fn turn_on_regular(&self) -> Result<(), String> {
         // Turn on the light and disable auto-off
-        self.execute_light_command("on").await?;
+        self.execute_light_command(&["on"]).await?;
         self.set_auto_off(false, None).await
     }
 
@@ -198,7 +211,7 @@ impl Handler {
                 let handler = handler.clone();
                 Box::pin(async move {
                     info!("Running midnight job at {}", Local::now());
-                    if let Err(e) = handler.execute_light_command("off").await {
+                    if let Err(e) = handler.execute_light_command(&["off"]).await {
                         error!("Failed to execute midnight light off command: {}", e);
                     } else {
                         info!("Successfully turned off light at midnight");
@@ -214,7 +227,7 @@ impl Handler {
                 let handler = handler.clone();
                 Box::pin(async move {
                     info!("Running 5 PM job at {}", Local::now());
-                    if let Err(e) = handler.execute_light_command("on").await {
+                    if let Err(e) = handler.execute_light_command(&["on"]).await {
                         error!("Failed to execute 5 PM light on command: {}", e);
                     } else {
                         info!("Successfully turned on light at 5 PM");
@@ -242,7 +255,7 @@ impl EventHandler for Handler {
                         "Failed to turn on light"
                     }
                 },
-                "light_off" => match self.execute_light_command("off").await {
+                "light_off" => match self.execute_light_command(&["off"]).await {
                     Ok(_) => "Light turned off!",
                     Err(e) => {
                         error!("Error turning light off: {}", e);
